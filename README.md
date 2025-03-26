@@ -20,15 +20,6 @@ Try the app live at: [https://discord-colored-text-generator-49e7txa51.vercel.ap
 ## Screenshots
 ![image](https://github.com/user-attachments/assets/7de65c66-11d9-4980-926b-2b23487c5535)
 
-
-### Main Interface
-![Main Interface](https://via.placeholder.com/800x400.png?text=Main+Interface)
-
-### Applying Colors and Styles
-![Applying Colors](https://via.placeholder.com/800x400.png?text=Applying+Colors+and+Styles)
-
-*Note: Replace the placeholder images above with actual screenshots of your app.*
-
 ## Installation
 
 Follow these steps to set up the project locally on your machine.
