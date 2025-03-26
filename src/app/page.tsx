@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Button, Title, Text, Group, Stack, Box, Tooltip } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
 
@@ -40,12 +40,6 @@ export default function Home() {
     ],
   };
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.innerHTML = textareaContent;
-    }
-  }, []);
-
   const handleInput = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -66,8 +60,8 @@ export default function Home() {
   const applyStyle = (ansiCode: number) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+
     if (ansiCode === 0) {
-      // Reset to the specified format
       const resetContent = 'Welcome to <span class="ansi-33">Swayam</span> <span class="ansi-45"><span class="ansi-37">Discord</span></span> <span class="ansi-31">C</span><span class="ansi-32">o</span><span class="ansi-33">l</span><span class="ansi-34">o</span><span class="ansi-35">r</span><span class="ansi-36">e</span><span class="ansi-37">d</span> Text Generator!';
       textarea.innerHTML = resetContent;
       setTextareaContent(resetContent);
@@ -76,24 +70,47 @@ export default function Home() {
 
     const selection = window.getSelection();
     if (!selection || selection.toString().length === 0) return;
-
-    const text = selection.toString();
-    const span = document.createElement("span");
-    span.innerText = text;
-    span.classList.add(`ansi-${ansiCode}`);
-
     const range = selection.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(span);
+    const selectedText = selection.toString();
+    const parentNode = range.commonAncestorContainer.parentElement;
+    const isFgStyle = ansiCode >= 30 && ansiCode < 40;
+    const isBgStyle = ansiCode >= 40 && ansiCode < 50;
 
-    range.selectNodeContents(span);
+    const newSpan = document.createElement("span");
+    newSpan.classList.add(`ansi-${ansiCode}`);
+    newSpan.innerText = selectedText;
+
+    if (parentNode && parentNode !== textarea && parentNode.className?.startsWith("ansi-")) {
+      const parentClass = parentNode.className;
+      const parentAnsiCode = parseInt(parentClass.split("-")[1], 10);
+      const isParentFg = parentAnsiCode >= 30 && parentAnsiCode < 40;
+      const isParentBg = parentAnsiCode >= 40 && parentAnsiCode < 50;
+
+      if (isFgStyle && isParentBg) {
+        range.deleteContents();
+        range.insertNode(newSpan);
+      } else if (isBgStyle && isParentFg) {
+        const newBgSpan = document.createElement("span");
+        newBgSpan.classList.add(`ansi-${ansiCode}`);
+        range.deleteContents();
+        newBgSpan.appendChild(newSpan);
+        range.insertNode(newBgSpan);
+      } else {
+        range.deleteContents();
+        range.insertNode(newSpan);
+      }
+    } else {
+      range.deleteContents();
+      range.insertNode(newSpan);
+    }
+    range.selectNodeContents(newSpan);
     selection.removeAllRanges();
     selection.addRange(range);
 
-    setTextareaContent(textarea.innerHTML); 
+    setTextareaContent(textarea.innerHTML);
   };
 
-  const nodesToANSI = (nodes: NodeList, states: { fg: number; bg: number; st: number }[]): string => {
+  const nodesToANSI = (nodes: NodeListOf<Node>, states: { fg: number; bg: number; st: number }[]): string => {
     let text = "";
     for (const node of Array.from(nodes)) {
       if (node.nodeType === 3) {
@@ -104,20 +121,39 @@ export default function Home() {
         text += "\n";
         continue;
       }
-      const ansiCode = +(node.className.split("-")[1]);
-      const newState = { ...states[states.length - 1] };
+      if (node instanceof Element && node.className) {
+        const className = node.className as string;
+        if (className.startsWith("ansi-")) {
+          const ansiCode = +(className.split("-")[1]);
+          const newState = { ...states[states.length - 1] };
+          if (ansiCode < 30) newState.st = ansiCode; 
+          if (ansiCode >= 30 && ansiCode < 40) newState.fg = ansiCode;
+          if (ansiCode >= 40) newState.bg = ansiCode; 
 
-      if (ansiCode < 30) newState.st = ansiCode;
-      if (ansiCode >= 30 && ansiCode < 40) newState.fg = ansiCode;
-      if (ansiCode >= 40) newState.bg = ansiCode;
-
-      states.push(newState);
-      text += `\x1b[${newState.st};${ansiCode >= 40 ? newState.bg : newState.fg}m`;
-      text += nodesToANSI(node.childNodes, states);
-      states.pop();
-      text += `\x1b[0m`;
-      if (states[states.length - 1].fg !== 2) text += `\x1b[${states[states.length - 1].st};${states[states.length - 1].fg}m`;
-      if (states[states.length - 1].bg !== 2) text += `\x1b[${states[states.length - 1].st};${states[states.length - 1].bg}m`;
+          states.push(newState);
+          let ansiSequence = "";
+          if (ansiCode < 30) {
+            ansiSequence = `\x1b[${ansiCode}m`;
+          } else {
+            ansiSequence = `\x1b[${newState.st};${ansiCode >= 40 ? newState.bg : newState.fg}m`;
+          }
+          text += ansiSequence;
+          text += nodesToANSI(node.childNodes, states);
+          states.pop();
+          text += `\x1b[0m`; 
+          const prevState = states[states.length - 1];
+          let reapplySequence = "";
+          if (prevState.fg !== 2) reapplySequence += `\x1b[${prevState.fg}m`;
+          if (prevState.bg !== 2) reapplySequence += `\x1b[${prevState.bg}m`;
+          if (reapplySequence) text += reapplySequence;
+        } else {
+          text += nodesToANSI(node.childNodes, states);
+        }
+      } else {
+        if (node.childNodes) {
+          text += nodesToANSI(node.childNodes, states);
+        }
+      }
     }
     return text;
   };
@@ -129,7 +165,6 @@ export default function Home() {
     clipboard.copy(toCopy);
     setCopyCount((prev) => Math.min(11, prev + 1));
     setTimeout(() => setCopyCount(0), 2000);
-    // No reset here; content should remain as-is
   };
 
   const funnyCopyMessages = [
@@ -149,14 +184,14 @@ export default function Home() {
 
   return (
     <Box p="md" className="container">
-      <Stack align="center" spacing="xl">
+      <Stack align="center" gap="xl">
         <Title order={1}>
           <span style={{ color: '#5865F2' }}>Discord </span> Colored Text Generator
         </Title>
 
         <Title order={2}>Create your text</Title>
 
-        <Group spacing="xs">
+        <Group gap="xs">
           {ansiColors.styles.map((style) => (
             <Button
               key={style.ansi}
@@ -168,7 +203,7 @@ export default function Home() {
           ))}
         </Group>
 
-        <Group spacing="xs">
+        <Group gap="xs">
           <Text fw={700}>FG</Text>
           {ansiColors.fg.map((color) => (
             <Tooltip key={color.ansi} label={color.tooltip}>
@@ -184,7 +219,7 @@ export default function Home() {
           ))}
         </Group>
 
-        <Group spacing="xs">
+        <Group gap="xs">
           <Text fw={700}>BG</Text>
           {ansiColors.bg.map((color) => (
             <Tooltip key={color.ansi} label={color.tooltip}>
