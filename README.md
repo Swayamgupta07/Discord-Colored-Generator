@@ -2,8 +2,6 @@
 
 A web-based tool to generate colored and styled text for Discord using ANSI escape codes. Create custom text with foreground colors, background colors, bold, and underline styles, and copy the formatted text to use directly in Discord.
 
-![Discord Colored Text Generator](https://via.placeholder.com/800x400.png?text=Discord+Colored+Text+Generator+Screenshot)
-
 ## Live Demo
 
 Try the app live at: [https://discord-colored-text-generator-49e7txa51.vercel.app](https://discord-colored-text-generator-49e7txa51.vercel.app)
